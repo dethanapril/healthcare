@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
 use App\Models\Asupan;
 use App\Models\BBuah;
 use App\Models\BLaukPauk;
@@ -13,13 +14,13 @@ use App\Models\SbbL_0_24;
 use App\Models\SbbL_25_60;
 use App\Models\SbbP_0_24;
 use App\Models\SbbP_25_60;
-use Illuminate\Http\Request;
 
 class OptimasiController extends Controller
 {
     public function optimasi(Request $request)
     {
-        $validatedData = $request->validate([
+        set_time_limit(86400);
+        $request->validate([
             'nama' => 'required|string|max:255',
             'jeniskelamin' => 'required|string|in:Laki-laki,Perempuan',
             'tanggallahir' => 'required|date',
@@ -27,48 +28,24 @@ class OptimasiController extends Controller
             'beratbadan' => 'required|numeric|min:0',
             'tinggibadan' => 'required|numeric|min:0',
             'menu' => 'required|string|in:Sehari,Sekali Makan',
-            'harga' => 'required|array',
-            'harga.*.*' => 'required|numeric|min:0',
-        ], [
-            'nama.required' => 'Nama harus diisi.',
-            'nama.string' => 'Nama harus berupa teks.',
-            'nama.max' => 'Nama tidak boleh lebih dari 255 karakter.',
-            'jeniskelamin.required' => 'Jenis kelamin harus diisi.',
-            'jeniskelamin.string' => 'Jenis kelamin harus berupa teks.',
-            'jeniskelamin.in' => 'Jenis kelamin harus salah satu dari: Laki-laki, Perempuan.',
-            'tanggallahir.required' => 'Tanggal lahir harus diisi.',
-            'tanggallahir.date' => 'Tanggal lahir harus berupa tanggal yang valid.',
-            'umur.required' => 'Umur harus diisi.',
-            'umur.numeric' => 'Umur harus berupa angka.',
-            'umur.min' => 'Umur minimal 12 bulan.',
-            'umur.max' => 'Umur maksimal 60 bulan.',
-            'beratbadan.required' => 'Berat badan harus diisi.',
-            'beratbadan.numeric' => 'Berat badan harus berupa angka.',
-            'beratbadan.min' => 'Berat badan minimal 0 kg.',
-            'tinggibadan.required' => 'Tinggi badan harus diisi.',
-            'tinggibadan.numeric' => 'Tinggi badan harus berupa angka.',
-            'tinggibadan.min' => 'Tinggi badan minimal 0 cm.',
-            'menu.required' => 'Menu harus diisi.',
-            'menu.string' => 'Menu harus berupa teks.',
-            'menu.in' => 'Menu harus salah satu dari: Sehari, Sekali Makan.',
-            'harga.required' => 'Harga bahan makanan harus diisi.',
-            'harga.array' => 'Harga bahan makanan harus berupa array.',
-            'harga.*.*.required' => 'Harga setiap bahan makanan harus diisi.',
-            'harga.*.*.numeric' => 'Harga setiap bahan makanan harus berupa angka.',
-            'harga.*.*.min' => 'Harga setiap bahan makanan minimal 0.',
+            'pokokIds' => 'required|array',
+            'laukIds' => 'required|array',
+            'sayurIds' => 'required|array',
+            'buahIds' => 'array',
         ]);
 
-        $bahanPokokIds = array_keys($request->harga['pokok']);
-        $bahanLaukIds = array_keys($request->harga['lauk']);
-        $bahanSayurIds = array_keys($request->harga['sayur']);
-        $bahanBuahIds = array_keys($request->harga['buah'] ?? []);
+        // Mengambil ID bahan makanan dari input user
+        $bahanPokokIds = $request->pokokIds;
+        $bahanLaukIds = $request->laukIds;
+        $bahanSayurIds = $request->sayurIds;
+        $bahanBuahIds = $request->buahIds ?? [];
 
+        // Mendapatkan data tambahan untuk proses optimasi
         $pilihanMenu = $request->menu;
         $umur = $request->umur;
         $jenisKelamin = $request->jeniskelamin;
         $beratBadan = $request->beratbadan;
         $tinggiBadan = $request->tinggibadan;
-        $hargaBahan = $request->harga;
 
         $asupan = Asupan::first();
         $presentasiGizi = PersentasiGizi::first();
@@ -76,7 +53,7 @@ class OptimasiController extends Controller
         $isSehari = $pilihanMenu == "Sehari";
         $divisor = $isSehari ? 1 : 3;
 
-        list($lowerBound, $upperBound) = $this->calculateBounds($asupan, $divisor, $request->harga);
+        list($lowerBound, $upperBound) = $this->calculateBounds($asupan, $divisor, $bahanBuahIds);
 
         $kelompokUmur = $this->getKelompokUmur($umur);
 
@@ -91,11 +68,12 @@ class OptimasiController extends Controller
             $this->validateWeight($beratBadan, $sbb->Min2SD, $sbb->Plus1SD);
         }
 
+        // Inisialisasi variabel untuk algoritma optimasi
         $combinationResults = [];
         $population = [];
-        $populationSize = 5;
-        $dimension = !empty($request->harga['buah']) ? 4 : 3;
-        $maxIterations = 10;
+        $populationSize = 10;
+        $dimension = !empty($request->buahIds) ? 4 : 3;
+        $maxIterations = 2500;
         $scalingFactor = 0.5;
         $crossoverRate = 0.5;
         $fitness1 = array_fill(0, $populationSize, INF);
@@ -107,10 +85,25 @@ class OptimasiController extends Controller
 
         // Membuat kombinasi bahan makanan
         $combinations = $this->generateCombinations($bahanPokokIds, $bahanLaukIds, $bahanSayurIds, $bahanBuahIds);
-        $allBahanData = $this->getAllBahanData();
-        $this->setHargaBahan($allBahanData, $hargaBahan);
 
-        $allCombinations = $combinations; // Simpan semua kombinasi
+        // Mendapatkan semua data bahan makanan
+        $allBahanData = $this->getAllBahanData();
+
+        // Fungsi helper untuk mendapatkan nama bahan makanan berdasarkan ID
+        function getIngredientNames($ids, $data)
+        {
+            return array_map(function ($id) use ($data) {
+                return $data->get($id)?->NamaMakanan; // Asumsi ada kolom 'NamaMakanan'
+            }, $ids);
+        }
+
+        $allIngredients = array_unique(array_merge(
+            getIngredientNames($bahanPokokIds, $allBahanData['pokok']),
+            getIngredientNames($bahanLaukIds, $allBahanData['lauk']),
+            getIngredientNames($bahanSayurIds, $allBahanData['sayur']),
+            !empty($bahanBuahIds) ? getIngredientNames($bahanBuahIds, $allBahanData['buah']) : []
+        ));
+
         $trialResults = []; // Untuk menyimpan hasil per trial
         $totalTrials = 20;
 
@@ -118,34 +111,35 @@ class OptimasiController extends Controller
             $startTrial = microtime(true);
             $successCount = 0;
             $combinationResults = [];
+            // Inisialisasi frekuensi kemunculan untuk semua bahan makanan
+            $ingredientFrequency = array_fill_keys($allIngredients, 0);
 
             foreach ($combinations as $combination) {
                 $pokokId = $combination['Pokok'];
                 $laukId = $combination['Lauk'];
                 $sayurId = $combination['Sayur'];
                 $buahId = $combination['Buah'] !== null ? $combination['Buah'] : null;
-    
+
                 $tblBahanPokok = $allBahanData['pokok']->get($pokokId);
                 $tblBahanLauk = $allBahanData['lauk']->get($laukId);
                 $tblBahanSayur = $allBahanData['sayur']->get($sayurId);
                 $tblBahanBuah = $buahId !== null ? $allBahanData['buah']->get($buahId) : null;
-    
+
                 if ($tblBahanPokok && $tblBahanLauk && $tblBahanSayur && ($buahId === null || $tblBahanBuah)) {
                     $bahanPokok = $this->getBahanNutrisi($tblBahanPokok);
                     $bahanLauk = $this->getBahanNutrisi($tblBahanLauk);
                     $bahanSayur = $this->getBahanNutrisi($tblBahanSayur);
                     $bahanBuah = $buahId !== null ? $this->getBahanNutrisi($tblBahanBuah) : [];
-                    
-                    // $start = microtime(true);
+
                     // Inisialisasi populasi
                     $population = $this->initializePopulation($populationSize, $lowerBound, $upperBound, $dimension);
-    
+
                     // Menghitung nilai fitnes awal
                     for ($i = 0; $i < $populationSize; $i++) {
                         $fitness1[$i] = $this->hitungFitness1($this->evaluateTotalGizi($population[$i], $bahanPokok, $bahanLauk, $bahanSayur, $bahanBuah), $kebGizi);
                         $fitness2[$i] = $this->hitungFitness2($this->evaluateTotalGizi($population[$i], $bahanPokok, $bahanLauk, $bahanSayur, $bahanBuah), $kebGizi);
                     }
-    
+
                     $bestIndex1 = array_search(min($fitness1), $fitness1);
                     $bestIndex2 = array_search(min($fitness2), $fitness2);
                     $localBestSolution1 = $population[$bestIndex1];
@@ -156,8 +150,8 @@ class OptimasiController extends Controller
                     $globalBestFitness2 = $localBestFitness2;
                     $globalBestSolution1 = $localBestSolution1;
                     $globalBestSolution2 = $localBestSolution2;
-    
-                    // Iterasi untuk menjalankan Algoritma DE nya
+
+                    // Iterasi untuk menjalankan Algoritma DE
                     $this->runDEAlgorithm(
                         $population,
                         $populationSize,
@@ -183,35 +177,47 @@ class OptimasiController extends Controller
                         $globalBestFitness1,
                         $globalBestFitness2
                     );
-    
+
                     // Mengambil nama bahan makanan
                     $namaBahanPokok = $allBahanData['pokok']->get($pokokId)?->NamaMakanan;
                     $namaBahanLauk = $allBahanData['lauk']->get($laukId)?->NamaMakanan;
                     $namaBahanSayur = $allBahanData['sayur']->get($sayurId)?->NamaMakanan;
                     $namaBahanBuah = $allBahanData['buah']->get($buahId)?->NamaMakanan;
-    
-                    $combinationResults[] = [
-                        'BestSolution1' => $globalBestSolution1,
-                        'BestSolution2' => $globalBestSolution2,
-                        'BestFitness1' => $globalBestFitness1,
-                        'BestFitness2' => $globalBestFitness2,
-                        'KebutuhanGizi' => $kebGizi,
-                        'TotalGizi1' => $this->evaluateTotalGizi($globalBestSolution1, $bahanPokok, $bahanLauk, $bahanSayur, $bahanBuah),
-                        'TotalGizi2' => $this->evaluateTotalGizi($globalBestSolution2, $bahanPokok, $bahanLauk, $bahanSayur, $bahanBuah),
-                        'NamaBahanPokok' => $namaBahanPokok,
-                        'NamaBahanLauk' => $namaBahanLauk,
-                        'NamaBahanSayur' => $namaBahanSayur,
-                        'NamaBahanBuah' => $namaBahanBuah,
-                        'TotalHarga1' => $this->calculateTotalPrice($globalBestSolution1, $hargaBahan, $combination),
-                        'TotalHarga2' => $this->calculateTotalPrice($globalBestSolution2, $hargaBahan, $combination),
-                    ];
 
                     // Cek jika kombinasi sukses
                     if ($globalBestFitness1 == 0 && $globalBestFitness2 == 0) {
+                        $combinationResults[] = [
+                            'BestSolution1' => $globalBestSolution1,
+                            'BestSolution2' => $globalBestSolution2,
+                            'BestFitness1' => $globalBestFitness1,
+                            'BestFitness2' => $globalBestFitness2,
+                            'KebutuhanGizi' => $kebGizi,
+                            'TotalGizi1' => $this->evaluateTotalGizi($globalBestSolution1, $bahanPokok, $bahanLauk, $bahanSayur, $bahanBuah),
+                            'TotalGizi2' => $this->evaluateTotalGizi($globalBestSolution2, $bahanPokok, $bahanLauk, $bahanSayur, $bahanBuah),
+                            'NamaBahanPokok' => $namaBahanPokok,
+                            'NamaBahanLauk' => $namaBahanLauk,
+                            'NamaBahanSayur' => $namaBahanSayur,
+                            'NamaBahanBuah' => $namaBahanBuah,
+                        ];
+
+                        // Memperbarui frekuensi kemunculan bahan makanan
+                        if (isset($ingredientFrequency[$namaBahanPokok])) {
+                            $ingredientFrequency[$namaBahanPokok]++;
+                        }
+                        if (isset($ingredientFrequency[$namaBahanLauk])) {
+                            $ingredientFrequency[$namaBahanLauk]++;
+                        }
+                        if (isset($ingredientFrequency[$namaBahanSayur])) {
+                            $ingredientFrequency[$namaBahanSayur]++;
+                        }
+                        if ($namaBahanBuah && isset($ingredientFrequency[$namaBahanBuah])) {
+                            $ingredientFrequency[$namaBahanBuah]++;
+                        }
                         $successCount++;
                     }
                 }
             }
+
             $endTrial = microtime(true);
             $trialTime = $endTrial - $startTrial;
 
@@ -219,6 +225,7 @@ class OptimasiController extends Controller
                 'trial' => $trial,
                 'waktu' => number_format($trialTime, 2),
                 'sukses' => $successCount,
+                'ingredient_frequency' => $ingredientFrequency,
             ];
         }
 
@@ -226,17 +233,16 @@ class OptimasiController extends Controller
             'trialResults' => $trialResults,
             'totalKombinasi' => count($combinations),
             'request' => $request->all(),
+            'allIngredients' => $allIngredients, // Daftar semua bahan makanan
         ]);
 
-        
-        // return view('hasil-optimasi')->with([
+        // return view('hasil-optimasi-gizi')->with([
         //     'combinationResults' => $combinationResults,
         //     'request' => $request->all(),
         // ]);
-    
     }
 
-    private function calculateBounds($asupan, $divisor, $harga)
+    private function calculateBounds($asupan, $divisor, $buahIds)
     {
         $lowerBound = [
             $asupan->PokokMin / $divisor,
@@ -249,11 +255,10 @@ class OptimasiController extends Controller
             $asupan->SayurMax / $divisor,
         ];
 
-        if (!empty($harga['buah'])) {
+        if (!empty($buahIds)) {
             $lowerBound[] = $asupan->BuahMin / $divisor;
             $upperBound[] = $asupan->BuahMax / $divisor;
         }
-
         return [$lowerBound, $upperBound];
     }
 
@@ -361,22 +366,6 @@ class OptimasiController extends Controller
             'buah' => BBuah::all()->keyBy('id'),
         ];
         return $bahanData;
-    }
-
-    private function setHargaBahan($allBahanData, $hargaBahan)
-    {
-        foreach ($allBahanData as $kategori => $bahanList) {
-            $kategoriLower = strtolower($kategori);
-
-            foreach ($bahanList as $id => $bahan) {
-                // Cek apakah kategori dan id ada di daftar harga
-                if (isset($hargaBahan[$kategoriLower][$id])) {
-                    $bahan->Harga = (int)$hargaBahan[$kategoriLower][$id];
-                } else {
-                    $bahan->Harga = 0;
-                }
-            }
-        }
     }
 
     private function getBahanNutrisi($bahan)
@@ -616,29 +605,4 @@ class OptimasiController extends Controller
             }
         }
     }
-
-    private function calculateTotalPrice($globalBestSolution, $hargaBahan, $combination)
-    {
-        $totalPrice = 0;
-
-        // Ambil harga bahan berdasarkan ID dari combination
-        $hargaPokok = $hargaBahan['pokok'][$combination['Pokok']] ?? 0;
-        $hargaLauk = $hargaBahan['lauk'][$combination['Lauk']] ?? 0;
-        $hargaSayur = $hargaBahan['sayur'][$combination['Sayur']] ?? 0;
-        $hargaBuah = !empty($combination['Buah']) ? ($hargaBahan['buah'][$combination['Buah']] ?? 0) : 0;
-
-        // Hitung total harga
-        $totalPrice += ($globalBestSolution[0] / 100) * $hargaPokok;
-        $totalPrice += ($globalBestSolution[1] / 100) * $hargaLauk;
-        $totalPrice += ($globalBestSolution[2] / 100) * $hargaSayur;
-
-        // Jika ada buah, tambahkan harga buah
-        if (!empty($combination['Buah'])) {
-            $totalPrice += ($globalBestSolution[3] / 100) * $hargaBuah;
-        }
-
-        return $totalPrice;
-    }
-
-
 }

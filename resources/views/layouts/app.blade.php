@@ -81,82 +81,21 @@
             });
 
             $(document).ready(function () {
-                $(".pilih-bahan").select2({
+                $( '.pilih-bahan' ).select2( {
                     theme: "bootstrap-5",
+                    width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
+                    placeholder: $( this ).data( 'placeholder' ),
+                    closeOnSelect: false,
+                    selectionCssClass: 'select2--small',
+                    dropdownCssClass: 'select2--small',
                     placeholder: "Pilih bahan",
-                    allowClear: true,
-                    // maximumSelectionLength: 5,
-                    // language: {
-                    //     maximumSelected: function (args) {
-                    //         return "Anda hanya dapat memilih " + args.maximum + " item";
-                    //     }
-                    // }
-                });
-
-                // Handle perubahan seleksi bahan
-                $(".pilih-bahan").on('change', function () {
-                    const $select = $(this);
-                    const kategori = $select.data("kategori").toLowerCase();
-                    const selectedBahan = [];
-
-                    // Ambil ID dari value option, bukan data-id
-                    $select.find(":selected").each(function () {
-                        selectedBahan.push($(this).val()); // Gunakan .val() bukan .data('id')
-                    });
-
-                    // Tambahkan baris baru
-                    selectedBahan.forEach(function (bahanId) {
-                        const rowId = `${kategori}_${bahanId}`;
-                        
-                        if (!$(`tr[data-row="${rowId}"]`).length) {
-                            const bahanNama = $select.find(`option[value="${bahanId}"]`).text(); // Cari berdasarkan value
-                            const kategoriCapitalized = kategori.charAt(0).toUpperCase() + kategori.slice(1);
-                            
-                            const newRow = `
-                                <tr data-row="${rowId}">
-                                    <td>${bahanNama}</td>
-                                    <td>
-                                        <input type="number" 
-                                            name="harga[${kategori}][${bahanId}]" 
-                                            class="form-control harga-input" 
-                                            min="0" 
-                                            step="1" required 
-                                            >
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-danger btn-sm remove">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>`;
-                            
-                            $("#form_harga tbody").append(newRow);
+                    maximumSelectionLength: 5,
+                    language: {
+                        maximumSelected: function (args) {
+                            return "Anda hanya dapat memilih " + args.maximum + " item";
                         }
-                    });
-
-                    // Hapus baris yang tidak terpilih
-                    $(`tr[data-row^="${kategori}_"]`).each(function () {
-                        const rowBahanId = $(this).data('row').split("_")[1];
-                        if (!selectedBahan.includes(rowBahanId)) {
-                            $(this).remove();
-                        }
-                    });
-                });
-
-                // Handle penghapusan manual
-                $(document).on("click", ".remove", function () {
-                    const $row = $(this).closest('tr');
-                    const kategori = $row.find('td:first').text().toLowerCase();
-                    const bahanId = $row.data('row').split("_")[1];
-                    
-                    // Update seleksi di Select2
-                    $(`select[data-kategori="${kategori}"]`)
-                        .find(`option[value="${bahanId}"]`)
-                        .prop("selected", false)
-                        .trigger("change");
-                    
-                    $row.remove();
-                });
+                    }
+                } );
 
                 // Handle form submission
                 $('#optimasiForm').on('submit', function() {

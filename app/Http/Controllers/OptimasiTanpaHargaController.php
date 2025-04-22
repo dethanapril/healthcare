@@ -71,7 +71,7 @@ class OptimasiTanpaHargaController extends Controller
         // Inisialisasi variabel untuk algoritma optimasi
         $combinationResults = [];
         $population = [];
-        $populationSize = 20;
+        $populationSize = 25;
         $dimension = !empty($request->buahIds) ? 4 : 3;
         $maxIterations = 2000;
         $scalingFactor = 0.5;
@@ -105,7 +105,7 @@ class OptimasiTanpaHargaController extends Controller
         ));
 
         $trialResults = []; // Untuk menyimpan hasil per trial
-        $totalTrials = 5;
+        $totalTrials = 10;
 
         for ($trial = 1; $trial <= $totalTrials; $trial++) {
             $startTrial = microtime(true);

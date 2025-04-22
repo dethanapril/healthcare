@@ -23,10 +23,10 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/about', [HomeController::class, 'about'])->name('about');
 Route::get('/impact', [HomeController::class, 'impact'])->name('impact');
 Route::get('/faq', [HomeController::class, 'faq'])->name('faq');
-Route::get('/optimasi-gizi', [HomeController::class, 'optimasi'])->name('optimasi-gizi');
+Route::get('/optimasi', [HomeController::class, 'optimasi'])->name('optimasi');
 
 Route::post('/optimasi', [OptimasiController::class, 'optimasi'])->name('optimasi');
-Route::post('/optimasi-gizi', [OptimasiTanpaHargaController::class, 'optimasi'])->name('optimasi-gizi');
+// Route::post('/optimasi-gizi', [OptimasiTanpaHargaController::class, 'optimasi'])->name('optimasi-gizi');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

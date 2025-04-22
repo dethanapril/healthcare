@@ -34,7 +34,7 @@
                     <a href="/" class="nav-item nav-link {{ Request::is('/') ? 'active' : '' }}">Beranda</a>
                     <a href="/about" class="nav-item nav-link {{ Request::is('about') ? 'active' : '' }}">Tentang</a>
                     <a href="/impact" class="nav-item nav-link {{ Request::is('impact') ? 'active' : '' }}">Dampak Kekurangan Gizi</a>
-                    <a href="/optimasi-gizi" class="nav-item nav-link {{ Request::is('optimasi-gizi') ? 'active' : '' }}">Optimasi Gizi</a>
+                    <a href="/optimasi" class="nav-item nav-link {{ Request::is('optimasi') ? 'active' : '' }}">Optimasi Gizi</a>
                     <a href="/faq" class="nav-item nav-link {{ Request::is('faq') ? 'active' : '' }}">FAQ</a>
                 </div>
                 <div class="d-flex me-4">
